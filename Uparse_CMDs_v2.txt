@@ -1,0 +1,813 @@
+###########################################################################################################################
+###########################################################################################################################
+################################  Uparse Pipeline | BIO9905MERG1   ########################################################
+################################  By Ramiro Logares | v2           ########################################################
+###########################################################################################################################
+ 
+## You are supposed to run all|most uncommented (ie not having # before) commands
+
+## We will be running this pipeline in the Abel cluster in an interactive mode.
+
+## Request an interactive session in abel
+## qlogin --account=uio --ntasks 4 # for general UiO users
+
+qlogin --account=ln0004k  --ntasks=1 --mem-per-cpu=4G --time=05:00:00 # Use this one for the course
+
+# Resource allocation may take a few seconds or minutes
+
+
+## Load modules
+### Here we load all programs we will use
+
+module purge
+module load amplicon_processing/1.5
+
+
+# In your home, make a folder called "RUN1"
+
+
+mkdir RUN1
+
+cd RUN1
+
+
+# Let's get the sequences we'll work with
+
+
+wget http://folk.uio.no/ramirol/Blanes_corrected_seq_Oslo_course_dirStruct/corrected_folder_structure.tar.gz
+
+
+# list what you've downloaded
+
+ll
+
+# [ramirol@compute-16-33 RUN3]$ ll
+# total 1005440
+# -rw-r--r-- 1 ramirol users 1029542349 Mar 25 12:09 corrected_folder_structure.tar.gz
+
+
+# uncompress the file
+
+tar xvzf corrected_folder_structure.tar.gz
+
+# rename folder
+
+mv corrected_folder_structure analysis
+
+
+# List contents
+
+
+ls
+
+
+# [ramirol@compute-16-33 analysis]$ ls
+# 18S_BL040126_022-  18S_BL040322_022-  18S_BL040525_022-  18S_BL040719_022-  18S_BL040929_022-  18S_BL041116_022-  18S_BL050120_022-  18S_BL050309_022-  18S_BL050510_022-  18S_BL050705_022-  18S_BL050913_022-  18S_BL051108_022-
+# 18S_BL040223_022-  18S_BL040419_022-  18S_BL040628_022-  18S_BL040831_022-  18S_BL041019_022-  18S_BL041214_022-  18S_BL050215_022-  18S_BL050413_022-  18S_BL050607_022-  18S_BL050803_022-  18S_BL051004_022-  18S_BL051213_022-
+
+
+# Now we are all set up to start with the analyses
+
+################################
+# Starting the UPARSE pipeline #
+################################
+
+
+# IMPORTANT: We will start with Step 3 (Merge reads), due to computational limitations. Ask me in case you have questions with the previous steps
+
+
+#
+#1. Separate files into folders containing sample name
+#
+
+for i in $(awk -F"MSTAReuk" '{print $1}' <(ls *.fastq.gz) | sort | uniq); do mkdir $i; mkdir $i/Raw; mv $i*.fastq.gz $i/Raw/.; done
+
+
+#
+#2. Run BayesHammer
+#
+
+for i in $(ls -d *); do cd $i; spades.py --only-error-correction -1 Raw/*_R1.* -2  Raw/*_R2.* -o $i.corrected ;cd ..; done
+
+
+#
+#3. Merge reads
+#
+
+# Using PEAR
+# If using PEAR with no gzip support, then do first: gunzip */*corrected/corrected/*fastq.gz
+
+# for i in $(ls -d *); do cd $i; pear -j 24 -n 200  -o $i  -f $i.corrected/corrected/*_R1.* -r $i.corrected/corrected/*_R2.* ;cd ..; done
+
+for i in $(ls -d *); do cd $i; pear2 -j 24 -n 200  -o $i  -f $i.corrected/corrected/*_R1.* -r $i.corrected/corrected/*_R2.* ;cd ..; done
+
+
+
+# Using Usearch
+
+#Uncompress files
+
+ gunzip */*.corrected/corrected/*_R1.*
+ gunzip */*.corrected/corrected/*_R2.*
+
+for i in $(ls -d *); do cd $i; usearch -fastq_mergepairs  $i.corrected/corrected/*_R1.* -reverse $i.corrected/corrected/*_R2.* -fastqout $i.usearch.merged.fastq  -fastq_maxdiffs 10 -fastq_maxdiffpct 10 -fastq_minovlen 16  ;cd ..; done
+
+
+## Check differences between merging methods. This is a quite importan step!
+
+
+grep -c ^@M0 */*fastq | grep -w 'usearch\|assembled'
+
+
+#18S_BL040126_022-/18S_BL040126_022-.assembled.fastq:281779
+#18S_BL040126_022-/18S_BL040126_022-.usearch.merged.fastq:259137
+#18S_BL040223_022-/18S_BL040223_022-.assembled.fastq:100538
+#18S_BL040223_022-/18S_BL040223_022-.usearch.merged.fastq:92477
+#18S_BL040322_022-/18S_BL040322_022-.assembled.fastq:218752
+#18S_BL040322_022-/18S_BL040322_022-.usearch.merged.fastq:200006
+#18S_BL040419_022-/18S_BL040419_022-.assembled.fastq:121318
+#18S_BL040419_022-/18S_BL040419_022-.usearch.merged.fastq:113074
+# ...
+
+
+#
+#4. Quality filtering
+#
+
+# PEAR merging
+for i in $(ls -d *); do cd $i; usearch -fastq_filter *assembled.fastq -fastq_maxee 0.5 -fastq_minlen 100 -fastaout $i.pear.longname.fna ;cd ..; done
+
+
+# Usearch merging
+
+for i in $(ls -d *); do cd $i; usearch -fastq_filter *usearch.merged.fastq -fastq_maxee 0.5 -fastq_minlen 100 -fastaout $i.usearch.longname.fna ;cd ..; done
+
+
+# Let's compare which sequences passed the QC using PEAR and Usearch merging
+
+ grep -c ">" */*longname*
+
+#18S_BL040126_022-/18S_BL040126_022-.pear.longname.fna:206294
+#18S_BL040126_022-/18S_BL040126_022-.usearch.longname.fna:195542
+#18S_BL040223_022-/18S_BL040223_022-.pear.longname.fna:72264
+#18S_BL040223_022-/18S_BL040223_022-.usearch.longname.fna:68268
+#18S_BL040322_022-/18S_BL040322_022-.pear.longname.fna:161502
+#18S_BL040322_022-/18S_BL040322_022-.usearch.longname.fna:153669
+#18S_BL040419_022-/18S_BL040419_022-.pear.longname.fna:88345
+#18S_BL040419_022-/18S_BL040419_022-.usearch.longname.fna:84461
+# ...
+
+
+
+#
+#5. Simplify fasta headers
+#
+
+## Pear Merging
+
+for i in $(ls -d *); do cd $i; simplifyFastaHeaders.pl $i.pear.longname.fna $i.seqnum $i.pear.fna $i.map;cd ..; done
+
+# Assuming that this is not a protein fasta file because other characters than AaRrNnDdCcEeQqGgHhIiLlKkMmFfPpSsTtWwYyVvBbZzJjXx were contained. If this is supposed to be DNA fasta file, please ignore this message.
+
+
+## Usearch Merging
+
+for i in $(ls -d *); do cd $i; simplifyFastaHeaders.pl $i.usearch.longname.fna $i.seqnum $i.usearch.fna $i.map;cd ..; done
+
+
+## IMPORTANT: During the course, we continue with point 7.2 (ie. we are not running the HMM to put reads into the same direction (as they are already in the same direction).
+
+#
+# 6. Put reads into the same direction using HMM
+# NB: This step can be skipped in the tutorial, we can continue with the clean files provided in the tutorial
+
+# 6.1 	for i in $(ls -d *); do cd $i; $cdbfasta $i.fna ;cd ..; done  # index fasta
+# 6.2    HMM3=/cluster/software/VERSIONS/amplicon_processing/1.5/mitag/mitags_extraction_protocol-master/miTAGs_extraction_protocol/HMM3    # This variable is needed
+# 6.2.1	 for i in $(ls -d *); do cd $i; rna_hmm3.py -i $i.fna -o $i.rRNA -m ssu,lsu -k bac,arc,euk -p 4   -L $HMM3;cd ..; done
+# 6.2.2  for i in $(ls -d *); do cd $i; parse_rna_hmm3_output.pl $i.rRNA ;cd ..; done
+# 6.2.3  for i in $(ls -d *); do cd $i; extract_rrna_seqs.pl $i.rRNA.parsed 1 100 ;cd ..; done  # 100 min read lenght  ## This step is not working / it has worked so far
+
+
+#
+# 7. ## Rename into UPARSE format
+#
+
+# NB: here, we add identifiers to the sequences (that is, we add the sample name to the sequence header)
+
+#7.1  If using the protocol to put reads into the same direction
+
+for i in $(ls -d *); do cd $i; cat *S_rRNA > $i.rRNA.fna ;cd ..; done
+
+for i in $(ls -d *); do cd $i; sed "-es/^>\(.*\)/>\1;barcodelabel=$i;/" < $i.rRNA.fna > $i.rRNA.uparse.fna ;cd ..; done
+ 
+
+
+#7.2 If NOT using the protocol	to put reads into the same direction
+# Use only if you know your reads are in the same direction (5-3)
+# This step needs further testing
+
+
+#Pear Merging
+
+ for i in $(ls -d *); do cd $i; sed "-es/^>\(.*\)/>\1;barcodelabel=$i;/" < $i.pear.fna > $i.rRNA.pear.uparse.fna ;cd ..; done
+
+
+#Usearch Merging
+
+
+ for i in $(ls -d *); do cd $i; sed "-es/^>\(.*\)/>\1;barcodelabel=$i;/" < $i.usearch.fna > $i.rRNA.usearch.uparse.fna ;cd ..; done
+
+
+# >18S_BL040126_022-.seqnum1;barcodelabel=18S_BL040126_022-;
+
+
+
+
+#
+# 8. Concatenate renamed reads
+#
+
+# PEAR merging
+
+mkdir ../concatenated_reads_same_direction
+
+for i in $(ls -d *); do cd $i; cp $i.rRNA.pear.uparse.fna ../../concatenated_reads_same_direction ;cd ..; done
+
+cat ../concatenated_reads_same_direction/*rRNA.pear.uparse.fna > ../concatenated_reads_same_direction/all_reads_5_3dir_pear_UPARSEfmt.fna
+
+mv ../concatenated_reads_same_direction/all_reads_5_3dir_pear_UPARSEfmt.fna .
+
+rm -rf ../concatenated_reads_same_direction
+
+
+# Usearch merging
+
+
+mkdir ../concatenated_reads_same_direction
+
+for i in $(ls -d *); do cd $i; cp $i.rRNA.usearch.uparse.fna ../../concatenated_reads_same_direction ;cd ..; done
+
+# NB: check where you're located with 'pwd' as the loop may leave you one level above your working directory
+
+cat ../concatenated_reads_same_direction/*rRNA.usearch.uparse.fna > ../concatenated_reads_same_direction/all_reads_5_3dir_usearch_UPARSEfmt.fna
+
+
+mv ../concatenated_reads_same_direction/all_reads_5_3dir_usearch_UPARSEfmt.fna .
+
+rm -rf ../concatenated_reads_same_direction
+
+
+
+
+#
+# 9. Starting the UPARSE workflow
+#
+
+# 9.1 Select your DB for chimera checking
+
+## We include this database in the variable 'db'
+
+## db=/projects/researchers/researchers01/ramirol/OSLO_course/DB/SILVA119/SILVA_119_SSURef_Nr95_tax_silva_trunc.min500bp_127497seqs_nospacenames.fasta
+
+db=/cluster/software/VERSIONS/amplicon_processing/1.5/DB/SILVA119/SILVA_119_SSURef_Nr95_tax_silva_trunc.min500bp_127497seqs_nospacenames.fasta
+
+# Check the database is working
+
+less $db
+
+
+
+# 9.2 Dereplication
+
+
+# Pear Merging
+usearch -derep_fulllength all_reads_5_3dir_pear_UPARSEfmt.fna -fastaout all_reads_5_3dir_pear_UPARSEfmt_dereplicated.fna -sizeout
+
+
+
+# Usearch Merging
+usearch -derep_fulllength all_reads_5_3dir_usearch_UPARSEfmt.fna -fastaout all_reads_5_3dir_usearch_UPARSEfmt_dereplicated.fna -sizeout
+
+
+
+
+
+# 9.3 Set variables
+
+#Pear Merging
+reads_derep_pear=all_reads_5_3dir_pear_UPARSEfmt_dereplicated.fna
+reads_pear=all_reads_5_3dir_pear_UPARSEfmt.fna
+
+#Usearch Merging
+reads_derep_usearch=all_reads_5_3dir_usearch_UPARSEfmt_dereplicated.fna
+reads_usearch=all_reads_5_3dir_usearch_UPARSEfmt.fna
+
+
+
+
+
+## And check them: (example for Pear reads only)
+
+echo "Pear reads file:" $reads_pear
+echo " "
+echo "Pear dereplicated reads file:" $reads_derep_pear
+
+
+
+
+# 9.4 Abundance sort and discard singletons
+
+
+#Pear merging
+usearch -sortbysize $reads_derep_pear -fastaout pear_sorted_reads.fa -minsize 2
+
+
+
+#Usearch merging
+usearch -sortbysize $reads_derep_usearch -fastaout usearch_sorted_reads.fa -minsize 2
+
+
+
+
+
+# 9.5 OTU Clustering  using UPARSE. A de-novo chimera check is done here
+## See the number of OTUs that are being generated by both approaches
+
+#Pear merging
+
+#NB The analysis below was done with Usearch 8.0 , in the version you're using (>9.0) the clustering is done at 97%
+## We will run Uparse at 97perc
+
+#99perc clustering | demonstration, not to be run
+
+#usearch -cluster_otus  pear_sorted_reads.fa -otu_radius_pct 1 -otus otus99_pear_repset.fa # cluster at 99%, remove -otu_radius_pct 1 for default clustering at 97%
+
+# 03:38  82Mb  100.0% 9611 OTUs, 15309 chimeras (7.7%)
+
+
+#97perc clustering | We'll run this in the course
+
+usearch -cluster_otus  pear_sorted_reads.fa  -otus otus97_pear_repset.fa
+
+# 03:40 69Mb    100.0% 2893 OTUs, 10887 chimeras
+
+
+#Usearch merging
+
+
+#99perc clustering | demonstration, not	to be run
+# usearch -cluster_otus  usearch_sorted_reads.fa -otu_radius_pct 1 -otus otus99_usearch_repset.fa # cluster at 99%, remove -otu_radius_pct 1 for default clustering at 97% 
+
+# 03:22  80Mb  100.0% 9255 OTUs, 14669 chimeras (7.8%)
+
+
+#97perc clustering | We'll run this in the course
+
+usearch -cluster_otus  usearch_sorted_reads.fa  -otus otus97_usearch_repset.fa
+
+# 03:42 68Mb    100.0% 2847 OTUs, 10454 chimeras
+
+
+
+
+#9.5.2 We'll use  UNOISE zOTUs (zero-radius OTUs) [100% OTUs]. Also, we can run 99% clustering starting from zOTUs
+
+
+# See http://biorxiv.org/content/biorxiv/early/2016/10/15/081257.full.pdf
+
+# Working with  the latest versions of Usearch (>9.2) (http://www.drive5.com/usearch/)
+
+
+#Pear merging
+
+usearch -unoise2 pear_sorted_reads.fa  -tabbedout unoise.pear.txt -fastaout unoise.pear.fa  # generates OTUs 100perc
+
+grep -c ">" unoise.pear.fa 
+
+Â# 5032zOTUs
+
+usearch -cluster_smallmem unoise.pear.fa -id 0.99 -centroids OTUs.pear.99perc.fa -sortedby size # cluster zOTUs into 99%
+
+#00:02 54Mb    100.0% 3741 clusters, max size 9, avg 1.3
+#00:03 54Mb    100.0% Writing centroids to OTUs.pear.99perc.fa
+                                                             
+#      Seqs  5032
+#  Clusters  3741 <== 99% clusters
+#  Max size  9
+#  Avg size  1.3
+#  Min size  1
+#Singletons  2863, 56.9% of seqs, 76.5% of clusters
+#   Max mem  54Mb
+#      Time  3.00s
+# Throughput  1677.3 seqs/sec.
+
+
+
+#Usearch merging
+
+usearch -unoise2 usearch_sorted_reads.fa  -tabbedout unoise.usearch.txt -fastaout unoise.usearch.fa # generates OTUs 100perc
+
+grep -c ">" unoise.usearch.fa
+
+# 4974  zOTUs
+
+
+usearch -cluster_smallmem unoise.usearch.fa -id 0.99 -centroids OTUs.usearch.99perc.fa -sortedby size # cluster zOTUs into 99%
+
+
+#00:01 54Mb    100.0% 3706 clusters, max size 9, avg 1.3
+#00:01 54Mb    100.0% Writing centroids to OTUs.usearch.99perc.fa
+                                                                
+#      Seqs  4974
+#  Clusters  3706 <== 99% clusters
+#  Max size  9
+#  Avg size  1.3
+#  Min size  1
+#Singletons  2841, 57.1% of seqs, 76.7% of clusters
+#   Max mem  54Mb
+#      Time  1.00s
+#Throughput  4974.0 seqs/sec.
+
+
+
+
+
+
+# 9.6 Chimera filtering using reference database
+
+# This is shown, but it is currently not recommended (usearch latest versions). We will not run it. Both latest versions of cluster_otu and unoise have a chimera check included
+
+#Pear Merging
+#usearch -uchime_ref otus99_pear_repset.fa -db $db -strand plus -uchimeout results.uchime.pear -nonchimeras otus99_pear_repset_nochimera.fa -chimeras chimeric_OTUs_pear.fa
+
+#01:24 951Mb  100.0% Found 503/9611 chimeras (5.2%), 2319 not classified (24.1%)
+#01:24 951Mb  100.0% Writing hits                                               
+#01:24 951Mb  100.0% Writing 503 chimeras
+#01:24 951Mb  100.0% Writing 9108 non-chimeras and unclassifieds
+
+
+
+#Usearch Merging
+
+#usearch -uchime_ref otus99_usearch_repset.fa -db $db -strand plus -uchimeout results.uchime.usearch -nonchimeras otus99_usearch_repset_nochimera.fa -chimeras chimeric_OTUs_usearch.fa
+
+#01:21 949Mb  100.0% Found 477/9255 chimeras (5.2%), 2267 not classified (24.5%)
+#01:21 949Mb  100.0% Writing hits                                               
+#01:21 949Mb  100.0% Writing 477 chimeras
+#01:21 949Mb  100.0% Writing 8778 non-chimeras and unclassifieds
+
+
+
+#Chimera checking in  UNOISE is not needed (built-in in the code)
+
+
+
+
+# 9.7 Labeling OTU sequences
+
+
+## scripts=/projects/researchers/researchers01/ramirol/OSLO_course/scripts
+
+scripts=/cluster/software/VERSIONS/amplicon_processing/1.5/scripts
+
+
+#Pear Merging
+# python $scripts/fasta_number.py otus99_pear_repset_nochimera.fa OTU_ > otus99_pear_repset_clean.fa
+
+python $scripts/fasta_number.py otus97_pear_repset.fa OTU_ > otus97_pear_repset_clean.fa
+
+
+#Usearch Merging
+#python $scripts/fasta_number.py otus99_usearch_repset_nochimera.fa OTU_ > otus99_usearch_repset_clean.fa
+
+python $scripts/fasta_number.py otus97_usearch_repset.fa OTU_ > otus97_usearch_repset_clean.fa
+
+
+
+# UNOISE
+
+
+#Pear merging
+python $scripts/fasta_number.py unoise.pear.fa  OTU_ > unoise_zotus_pear_repset_clean.fa
+
+
+#Usearch merging
+python $scripts/fasta_number.py  unoise.usearch.fa OTU_ > unoise_zotus_usearch_repset_clean.fa
+
+
+
+
+
+
+# 9.8 Map reads (including singletons) back to OTUs
+
+
+# NB!
+# We will not run this step, as it takes 1-2h with 30 threads. Results files to download are indicated below
+
+# Done in freebee for this tutorial
+
+
+
+#Pear Merging
+
+#You can download the results of this step doing:
+
+# ==>> NB: we'll use the 97perc clustering # <<== : 99perc is included for informational purposes
+
+
+# wget http://folk.uio.no/ramirol/uc_files/map99.pear.uc : 99perc
+
+wget
+
+
+# usearch -usearch_global $reads_pear -db otus99_pear_repset_clean.fa -strand plus -id 0.99 -uc map99.pear.uc -maxhits 1 -maxaccepts 5 -maxrejects 10000 -threads 30  # max rejects is tuned to the number of OTUs , max accepts is reduced from 20 to 5 to decrease computation time 
+
+
+# 00:00  43Mb  100.0% Reading otus99_pear_repset_clean.fa
+# 00:00 9.9Mb  100.0% Masking                            
+# 00:00  11Mb  100.0% Word stats
+# 00:00  11Mb  100.0% Alloc rows
+# 00:01  23Mb  100.0% Build index
+# 01:39:19 425Mb  100.0% Searching, 94.9% matched
+
+
+# nohup sh -c 'usearch -usearch_global all_reads_5_3dir_pear_UPARSEfmt.fna  -db otus97_pear_repset_clean.fa -strand plus -id 0.97 -uc map97.pear.uc -maxhits 1 -maxaccepts 5 -maxrejects 5000 -threads 15' &
+
+wget http://folk.uio.no/ramirol/uc_files/map97.pear.uc # 97perc pear; use this file
+
+
+
+
+
+#Usearch Merging
+
+
+#You can download the results of this step doing:
+
+# wget http://folk.uio.no/ramirol/uc_files/map99.usearch.uc
+
+
+
+
+# usearch -usearch_global $reads_usearch -db otus99_usearch_repset_clean.fa -strand plus -id 0.99 -uc map99.usearch.uc -maxhits 1 -maxaccepts 5 -maxrejects 10000 -threads 1
+
+# 00:00  43Mb  100.0% Reading otus99_usearch_repset_clean.fa
+# 00:00 9.8Mb  100.0% Masking                               
+# 00:00  11Mb  100.0% Word stats
+# 00:00  11Mb  100.0% Alloc rows
+# 00:00  22Mb  100.0% Build index
+# 01:31:52 424Mb  100.0% Searching, 95.1% matched
+
+
+# nohup sh -c 'usearch -usearch_global all_reads_5_3dir_usearch_UPARSEfmt.fna  -db otus97_usearch_repset_clean.fa -strand plus -id 0.97 -uc map97.usearch.uc -maxhits 1 -maxaccepts 5 -maxrejects 5000 -threads 15' &
+
+
+wget http://folk.uio.no/ramirol/uc_files/map97.usearch.uc # 97perc usearch; use this file
+
+
+
+
+##  UNOISE
+
+
+#Pear merging
+
+# 97% mapping
+# usearch -usearch_global all_reads_5_3dir_pear_UPARSEfmt.fna  -db unoise_zotus_pear_repset_clean.fa  -strand plus -id 0.97 -uc unoise.map97.pear.uc -maxhits 1 -maxaccepts 5 -maxrejects 5000 -threads 30
+
+#00:00 42Mb    100.0% Reading unoise_zotus_pear_repset_clean.fa
+#00:00 8.5Mb   100.0% Masking (fastnucleo)                     
+#00:00 9.3Mb   100.0% Word stats          
+#00:00 9.3Mb   100.0% Alloc rows
+#00:00 16Mb    100.0% Build index
+#45:22 415Mb   100.0% Searching, 98.1% matched
+
+
+##
+# 99% mapping | this mapping seems to perform better | 3.7 bases different in 370bp fragment
+# usearch -usearch_global all_reads_5_3dir_pear_UPARSEfmt.fna  -db unoise_zotus_pear_repset_clean.fa  -strand plus -id 0.99 -uc unoise.map99.pear.uc -maxhits 1 -maxaccepts 5 -maxrejects 5000 -threads 30
+
+
+
+wget http://folk.uio.no/ramirol/uc_files/unoise.map99.pear.uc # zotus with 99perc mapping. Use this file
+
+
+
+#Usearch merging
+
+# 97% mapping
+# usearch -usearch_global all_reads_5_3dir_usearch_UPARSEfmt.fna  -db unoise_zotus_usearch_repset_clean.fa  -strand plus -id 0.97 -uc unoise.map97.usearch.uc -maxhits 1 -maxaccepts 5 -maxrejects 5000 -threads 30
+
+#00:00 42Mb    100.0% Reading unoise_zotus_usearch_repset_clean.fa
+#00:00 8.5Mb   100.0% Masking (fastnucleo)                        
+#00:00 9.3Mb   100.0% Word stats          
+#00:00 9.3Mb   100.0% Alloc rows
+#00:00 16Mb    100.0% Build index
+#42:44 415Mb   100.0% Searching, 98.1% matched
+
+##
+# 99% mapping |  this mapping seems to perform better | 3.7 bases different in 370bp fragment
+# nohup sh -c 'usearch -usearch_global all_reads_5_3dir_usearch_UPARSEfmt.fna  -db unoise_zotus_usearch_repset_clean.fa  -strand plus -id 0.99 -uc unoise.map99.usearch.uc -maxhits 1 -maxaccepts 5 -maxrejects 5000 -threads 30' &
+
+
+wget http://folk.uio.no/ramirol/uc_files/unoise.map99.usearch.uc # zotus with 99perc mapping. Use this file
+
+
+
+
+# 9.9 Generate OTU table
+
+## ==>> 99% clustering | UPARSE <<== | This is only give for informational purposes
+
+
+#Pear Merging
+
+#python $scripts/uc2otutab.py map99.pear.uc > otu_table99.pear.txt
+
+#Check OTU table
+
+#wc otu_table99.pear.txt
+
+#  9109 227725 534130 otu_table99.pear.txt
+
+#grep -c ">" otus99_pear_repset_clean.fa
+
+# 9108
+
+
+
+
+#Usearch Merging
+
+
+#python $scripts/uc2otutab.py map99.usearch.uc > otu_table99.usearch.txt
+
+
+#Check OTU table
+
+#8779 219475 514845 otu_table99.usearch.txt
+
+#grep -c ">" otus99_usearch_repset_clean.fa
+
+# 8778
+
+
+
+## ==>> 97% clustering | UPARSE <<== | This will be used in the course
+
+
+
+#Pear Merging
+
+python $scripts/uc2otutab.py map97.pear.uc > otu_table97.pear.txt
+
+
+wc otu_table97.pear.txt  # n-1 =number of OTUs
+
+#  2894  72350 175374 otu_table97.pear.txt
+
+grep -c ">" otus97_pear_repset_clean.fa # Get number of sequences
+
+# 2893 # One line less than the	table, what is expected
+
+
+#Usearch Merging
+
+python $scripts/uc2otutab.py map97.usearch.uc > otu_table97.usearch.txt
+
+
+wc otu_table97.usearch.txt  # n-1 =number of OTUs
+
+#  2848  71200 172440 otu_table97.usearch.txt
+
+grep -c ">" otus97_usearch_repset_clean.fa
+
+# 2847 # One line less than the table, what is expected
+
+
+
+
+#  UNOISE
+
+#Pear Merging
+
+#97% mapping
+
+python $scripts/uc2otutab.py unoise.map97.pear.uc > unoise.otu_table.pear.txt
+
+# At this mapping level, reads are mapped to nearby OTUs (i.e., reads are not assigned to the OTU that they should be)
+
+
+wc
+# 4888 122200 292653 unoise.otu_table.pear.txt
+
+grep -c ">" unoise_zotus_pear_repset_clean.fa # number of representative sequences
+
+# 5032
+
+
+
+
+#99% mapping # Preferred Option
+
+python $scripts/uc2otutab.py unoise.map99.pear.uc > unoise.otu_table.pear.99percMapping.txt
+
+# At this mapping level, reads are assigned much better to the corresponding read
+
+wc unoise.otu_table.pear.99percMapping.txt
+
+# 5032 125800 301399 unoise.otu_table.pear.99percMapping.txt
+
+
+
+
+
+
+#Usearch Merging
+
+#97% mapping
+
+python $scripts/uc2otutab.py unoise.map97.usearch.uc > unoise.otu_table.usearch.txt
+
+wc
+# 4825 120625 288707 unoise.otu_table.usearch.txt
+
+# unoise_zotus_usearch_repset_clean.fa:4974
+
+# Note differences between the number pf zotu-seqs and the OTU table. This is most probably due to the mapping.
+
+
+
+#99% mapping  #  Preferred Option
+
+python $scripts/uc2otutab.py unoise.map99.usearch.uc > unoise.otu_table.usearch.99percMapping.txt
+
+
+wc unoise.otu_table.usearch.99percMapping.txt
+
+# 4975
+
+
+grep -c ">" unoise_zotus_usearch_repset_clean.fa  # Number of reference sequences
+
+# 4974
+
+
+
+
+
+
+# 10. Taxonomy classification
+
+# silva123=/projects/researchers/researchers01/ramirol/OSLO_course/DB/SILVA123/SILVA_123_blastDB
+
+silva123=/cluster/software/VERSIONS/amplicon_processing/1.5/DB/SILVA123/SILVA_123_blastDB
+
+
+
+#PEAR merging
+
+
+# 99% clustering
+
+blastn -db $silva123 -query otus99_pear_repset_clean.fa  -outfmt '6 std qlen' -perc_identity 75 -max_target_seqs 1 -evalue 0.0001 -out blastn_vs_SILVA_v123_evalue10min4_pear  -num_threads 10
+
+# Results
+
+wget http://folk.uio.no/ramirol/blastn_results/blastn_vs_SILVA_v123_evalue10min4_pear
+
+
+# 97% clustering
+
+nohup sh -c 'blastn -db /cluster/software/VERSIONS/amplicon_processing/1.5/DB/SILVA123/SILVA_123_blastDB  -query otus97_pear_repset_clean.fa  -outfmt '6 std qlen' -perc_identity 75 -max_target_seqs 1 -evalue 0.0001 -out blastn_vs_SILVA_v123_evalue10min4_pear_97perc  -num_threads 7' &
+
+## ZOTUs
+
+
+nohup sh -c 'blastn -db /cluster/software/VERSIONS/amplicon_processing/1.5/DB/SILVA123/SILVA_123_blastDB  -query unoise_zotus_pear_repset_clean.fa  -outfmt '6 std qlen' -perc_identity 75 -max_target_seqs 1 -evalue 0.0001 -out blastn_vs_SILVA_v123_evalue10min4_pear_ZOTUs  -num_threads 7' &
+
+
+
+
+# Usearch merging
+
+## Uparse
+
+# 99% clustering
+
+#blastn -db $silva123 -query otus99_usearch_repset_clean.fa  -outfmt '6 std qlen' -perc_identity 75 -max_target_seqs 1 -evalue 0.0001 -out blastn_vs_SILVA_v123_evalue10min4_usearch  -num_threads 10
+
+# Results
+
+wget http://folk.uio.no/ramirol/blastn_results/blastn_vs_SILVA_v123_evalue10min4_usearch
+
+
+# 97% clustering
+
+#nohup sh -c 'blastn -db /cluster/software/VERSIONS/amplicon_processing/1.5/DB/SILVA123/SILVA_123_blastDB  -query otus97_usearch_repset_clean.fa  -outfmt '6 std qlen' -perc_identity 75 -max_target_seqs 1 -evalue 0.0001 -out blastn_vs_SILVA_v123_evalue10min4_usearch_97perc  -num_threads 7' &
+
+## ZOTUs
+
+nohup sh -c 'blastn -db /cluster/software/VERSIONS/amplicon_processing/1.5/DB/SILVA123/SILVA_123_blastDB  -query unoise_zotus_usearch_repset_clean.fa  -outfmt '6 std qlen' -perc_identity 75 -max_target_seqs 1 -evalue 0.0001 -out blastn_vs_SILVA_v123_evalue10min4_usearch_ZOTUs  -num_threads 7' &
+
