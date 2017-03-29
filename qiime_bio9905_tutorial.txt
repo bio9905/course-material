@@ -1,0 +1,132 @@
+	#1	Request an interactive session in abel
+qlogin --account=ln0004k --ntasks=1 --mem-per-cpu=4G --time=03:00:00  --reservation=BIO9905
+	#2	make a folder in your home directory for the qiime analyses and move into it
+mkdir qiime_analysis
+cd qiime_analysis
+	#3	Create input files for Qiime
+	#a. open nano to create a mapping file
+nano
+	#once in nano, write the following lines (including #SampleID as the first field in the first line)
+	#each field should be separated by a tab
+	#make sure there are no extra line breaks at the end of your file
+#SampleID	BarcodeSequence	LinkerPrimerSequence	Description
+18S_BL051108_022	ACGACAGCTC 	TCCTCCTCCTCC	November805
+	#use CTRL + o to save the file as map.txt
+
+	#b. open nano to create a parameter file with options for the join_paired_ends.py and split_libraries.py scripts
+nano
+	#once in nano, write the following lines
+join_paired_ends:pe_join_method	fastq-join
+join_paired_ends:min_overlap	10
+join_paired_ends:perc_max_diff	90
+split_libraries_fastq:max_bad_run_length	3
+split_libraries_fastq:min_per_read_length_fraction	0.75
+split_libraries_fastq:sequence_max_n	0
+split_libraries_fastq:phred_quality_threshold 25
+split_libraries_fastq:phred_offset 33 
+	#use CTRL + o to save the file as parameter.txt
+
+
+	#4	load modules for qiime and set paths
+module purge
+module load qiime
+module load amplicon_processing/1.5
+export PYTHONPATH=/cluster/software/VERSIONS/amplicon_processing/:/cluster/software/VERSIONS/qiime-1.9.1/lib/python2.7/site-packages/:/cluster/software/VERSIONS/sortmerna/2.0/lib/lib/matplotlib-1.5.0/build/lib.linux-x86_64-2.7/:/cluster/software/VERSIONS/python_packages-2.7_6/usr/lib64/python2.6/site-packages/gtk-2.0/:/cluster/software/VERSIONS/amplicon_processing/1.5/python
+
+	#5	Fetch the data and database we're going to work with. 
+		#a. This is the BayesHammer corrected data from yesterday 		
+wget http://folk.uio.no/ramirol/Blanes_corrected_seq_Oslo_course/corrected_reads.tar.gz
+		#b. write your own command to fetch the database from this location: http://folk.uio.no/marieda/silva.tar.gz
+
+	#6	expand the files and remove the original files
+tar -xzvf corrected_reads.tar.gz
+tar -xzvf silva.tar.gz
+rm corrected_reads.tar.gz
+rm silva.tar.gz
+
+	#7	Use the multiple_join_paired_ends.py script in qiime to merge the forward and reverse reads
+		#include the following options in your command:
+		# -i 	input directory, should be corrected_reads
+		# -o	output directory, should be merged
+		# -p	the filepath to the parameter file you created in 3b.
+		# --read1_indicator	should be _R1
+		# --read2_indicator	should be _R2
+#try writing your own command...if you fail, see end of file for the correct command!
+
+	#8	Use a bash for loop to copy and rename all of the merged sequence files into the main 'merged' directory
+		#you will see an error, but it is just because we have a log file in the merged folder that is not a sample file!  This will not affect the results.
+for i in $(ls merged/); do cp merged/$i/fastqjoin.join.fastq merged/$i.merged ; done
+
+
+	#9	Use the multiple_split_libraries_fastq.py command to quality filter the sequences and merge them into a single file
+		#a. you may see a RuntimeWarning, but that is just because we have a log file in the merged folder that is not a sample file!  This will not affect the results.
+multiple_split_libraries_fastq.py -i merged/ -o filtered -m sampleid_by_file -p parameter.txt --sampleid_indicator -MSTAR
+	
+		#b. check out the results by reading the logfile
+			#helpful hint, press 'q' when you're done reading to return to the terminal!
+less filtered/split_library_log.txt 
+
+		#c. rename the sequences in the new fasta file so qiime will be able to parse by sample
+			#this is an extra step in the workflow because qiime parses everything before the first '_' as your sample name. If we don't run this command, all of the samples will be called 18S
+			#we use sed to search and replace 18S_ with nothing
+sed -i 's/18S_//g' filtered/seqs.fna
+
+
+	#10	Use the identify_chimeric_seqs.py command to remove chimeric sequences from your data
+		#running de-novo chimera checking on the entire dataset is resource intensive
+		#for the purpose of this tutorial we are providing you with the output files from the chimera checking step
+		#we fetch the file listing all of the chimeric sequences from github with the following command:
+wget https://github.com/bio9905/course-material/blob/master/chimeras.txt
+		#the command to actually run the chimera checking yourself is:				
+		#identify_chimeric_seqs.py -i seqs.fna --suppress_usearch61_ref --usearch61_mindiv 3 -o chimeras -m usearch61
+
+	#11	Remove chimeric sequences from the dataset using filter_fasta.py
+		#the input file is called seqs.fna and is found in the folder called filtered
+		#the output should be called seqs.nochimeras.fna
+		#the list of non-chimeric sequence identifiers is called non_chimeras.txt
+		#hint: you will need to use the negate option
+
+#try writing your own command...if you fail, see end of file for the correct command!
+
+	#12	Cluster the sequences into OTUs 
+		#a. first let's try using pick_open_reference_otus.py (this is the qiime developer's preferred method)
+pick_open_reference_otus.py -i seqs.nochimeras.fna -o uclust_openref_99 -m uclust -r silva/99_otus_18S.fasta --min_otu_size 2 -s 0.99	
+		#now let's try with the swarm algorithm from yesterday at 99%
+pick_otus.py -i seqs.nochimeras.fna -m swarm -o swarm_99 -s 0.99 
+		#b. the pick_otus.py command does not automatically provide reference sequences for each OTU so let's do that now
+pick_rep_set.py -i swarm_99/seqs.nochimeras_otus.txt -f seqs.nochimeras.fna -o swarm_99/swarm99_rep_set.fna -m most_abundant
+		#####clustering taking too long?  you can fetch the results from http://folk.uio.no/marieda/swarm.tar.gz and http://folk.uio.no/marieda/uclustref.tar.gz using the wget command
+	#13 Look at the results
+less swarm_99/seqs.nochimeras_otus.log
+
+	#14 Assign taxonomy to the new otus
+		#for uclust_openref
+assign_taxonomy.py -i uclust_openref_99/rep_set.fna -o uclust_openref_99/ -t silva/majority_taxonomy_all_levels.txt -r silva/99_otus_18S.fasta -m blast 		 
+		#for swarm
+assign_taxonomy.py -i swarm_99/swarm99_rep_set.fna -o swarm_99/ -t silva/majority_taxonomy_all_levels.txt -r silva/99_otus_18S.fasta -m blast 		  
+
+	#15 Build OTU tables
+make_otu_table.py -i uclust_openref_99/seqs.nochimeras_otus.txt -t uclust_openref_99/rep_set_tax_assignments.txt -o uclust_openref_99/uclust_openref_99.biom 
+make_otu_table.py -i swarm_99/seqs.nochimeras_otus.txt -t swarm_99/swarm_99_rep_set_tax_assignments.txt -o swarm_99/swarm_99.biom 
+
+	#16 Filter OTU tables to remove singleton otus	
+filter_otus_from_otu_table.py -i uclust_openref_99/uclust_openref_99.biom -o uclust_openref_99/uclust_openref_99_mc2.biom -n 2
+filter_otus_from_otu_table.py -i swarm_99/swarm_99.biom -o swarm_99/swarm_99_mc2.biom -n 2
+
+	#17 Convert the OTU tables into a human readable format
+biom convert -i uclust_openref_99/uclust_openref_99_mc2.biom -o uclust_openref_99/uclust_openref_99_mc2.txt --to-tsv --header-key taxonomy
+biom convert -i swarm_99/swarm_99_mc2.biom -o swarm_99/swarm_99_mc2.txt --to-tsv --header-key taxonomy
+
+	#18 Do some basic visualizations! to do this, you will have to fetch the MSTAR_mapping file from http://folk.uio.no/marieda/MSTAR_mapping.txt using the wget command
+core_diversity_analyses.py -i swarm_99/swarm_99_mc2.biom -o swarm_99/core_diversity -m MSTAR_mapping.txt -e 50000 --nonphylogenetic_diversity -c Season,Year,Month
+
+
+
+
+
+
+#this is the correct multiple_join_paired_ends.py command
+multiple_join_paired_ends.py -i corrected_reads -o merged -p parameter.txt --read1_indicator _R1 --read2_indicator _R2		
+
+#this is the correct filter_fasta.py command
+filter_fasta.py -f filtered/seqs.fna -o seqs.nochimeras.fna -s non_chimeras.txt
