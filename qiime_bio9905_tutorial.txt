@@ -72,14 +72,16 @@ sed -i 's/18S_//g' filtered/seqs.fna
 		#running de-novo chimera checking on the entire dataset is resource intensive
 		#for the purpose of this tutorial we are providing you with the output files from the chimera checking step
 		#we fetch the file listing all of the chimeric sequences from github with the following command:
-wget https://github.com/bio9905/course-material/blob/master/chimeras.txt
+wget http://folk.uio.no/marieda/chimeras.tar.gz
+tar -xzvf chimeras.tar.gz
 		#the command to actually run the chimera checking yourself is:				
 		#identify_chimeric_seqs.py -i seqs.fna --suppress_usearch61_ref --usearch61_mindiv 3 -o chimeras -m usearch61
 
 	#11	Remove chimeric sequences from the dataset using filter_fasta.py
-		#the input file is called seqs.fna and is found in the folder called filtered
+		#the input file you would normally use is called seqs.fna and is found in the folder called filtered
+		#because we are using the results from my earlier analyses, you will find the seqs.fna file in the chimeras folder
 		#the output should be called seqs.nochimeras.fna
-		#the list of non-chimeric sequence identifiers is called non_chimeras.txt
+		#the list of chimeric sequence identifiers is called chimeras.txt
 		#hint: you will need to use the negate option
 
 #try writing your own command...if you fail, see end of file for the correct command!
