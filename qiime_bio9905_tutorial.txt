@@ -53,11 +53,6 @@ rm silva.tar.gz
 		# --read2_indicator	should be _R2
 #try writing your own command...if you fail, see end of file for the correct command!
 
-	#8	Use a bash for loop to copy and rename all of the merged sequence files into a new merged_only directory
-		#you will see an error, but it is just because we have a log file in the merged folder that is not a sample file!  This will not affect the results.
-mkdir merged_only
-for i in $(ls merged/); do cp merged/$i/fastqjoin.join.fastq merged_only/$i.merged ; done
-
 
 	#9	Use the multiple_split_libraries_fastq.py command to quality filter the sequences and merge them into a single file
 		#a. you may see a RuntimeWarning, but that is just because we have a log file in the merged folder that is not a sample file!  This will not affect the results.
