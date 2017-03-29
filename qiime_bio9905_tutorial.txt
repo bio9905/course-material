@@ -61,7 +61,7 @@ for i in $(ls merged/); do cp merged/$i/fastqjoin.join.fastq merged_only/$i.merg
 
 	#9	Use the multiple_split_libraries_fastq.py command to quality filter the sequences and merge them into a single file
 		#a. you may see a RuntimeWarning, but that is just because we have a log file in the merged folder that is not a sample file!  This will not affect the results.
-multiple_split_libraries_fastq.py -i merged/ -o filtered -m sampleid_by_file -p parameter.txt --sampleid_indicator -MSTAR
+multiple_split_libraries_fastq.py -i merged_only/ -o filtered -m sampleid_by_file -p parameter.txt --sampleid_indicator -MSTAR
 	
 		#b. check out the results by reading the logfile
 			#helpful hint, press 'q' when you're done reading to return to the terminal!
