@@ -129,4 +129,4 @@ core_diversity_analyses.py -i swarm_99/swarm_99_mc2.biom -o swarm_99/core_divers
 multiple_join_paired_ends.py -i corrected_reads -o merged -p parameter.txt --read1_indicator _R1 --read2_indicator _R2		
 
 #this is the correct filter_fasta.py command
-filter_fasta.py -f filtered/seqs.fna -o seqs.nochimeras.fna -s non_chimeras.txt
+filter_fasta.py -f filtered/seqs.fna -o seqs.nochimeras.fna -s chimeras.txt -n
