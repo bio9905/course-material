@@ -10,14 +10,13 @@ module load mothur
 	#4	Fetch the data and database we're going to work with. 
 		#a. This is a subset of the merged, BayesHammer corrected data we've already worked with
 			#it also includes a mothur group file		
-wget http://folk.uio.no/marieda/mothur.data.tar.gz
-		#b. write your own command to fetch the database from this location: http://folk.uio.no/marieda/mothur.silva.tar.gz
-
+wget http://folk.uio.no/marieda/merged.seqs.fastq.tar.gz
+		#b. write your own command to fetch the database from this location: http://folk.uio.no/marieda/SILVA_128.align.fasta.tar.gz
 	#5	expand the files and remove the original files
-tar -xzvf mothur.data.tar.gz
-tar -xzvf mothur.silva.tar.gz
-rm mothur.data.tar.gz
-rm mothur.silva.tar.gz
+tar -xzvf merged.seqs.fastq.tar.gz
+tar -xzvf SILVA_128.align.fasta.tar.gz
+rm merged.seqs.fastq.tar.gz
+rm mothurSILVA_128.align.fasta.tar.gz
 
 	#6	open an interactive session with mothur
 mothur
