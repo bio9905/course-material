@@ -1,0 +1,73 @@
+	#1	Request an interactive session in abel
+qlogin --account=ln0004k --ntasks=1 --mem-per-cpu=4G --time=05:00:00 --reservation=BIO9905
+	#2	make a folder in your home directory for the mothur analyses and move into it
+mkdir mothur_analysis
+cd mothur_analysis
+	#3	load modules for qiime and set paths
+module purge
+module load mothur
+
+	#4	Fetch the data and database we're going to work with. 
+		#a. This is a subset of the merged, BayesHammer corrected data we've already worked with
+			#it also includes a mothur group file		
+wget http://folk.uio.no/marieda/mothur.data.tar.gz
+		#b. write your own command to fetch the database from this location: http://folk.uio.no/marieda/mothur.silva.tar.gz
+
+	#5	expand the files and remove the original files
+tar -xzvf mothur.data.tar.gz
+tar -xzvf mothur.silva.tar.gz
+rm mothur.data.tar.gz
+rm mothur.silva.tar.gz
+
+	#6	open an interactive session with mothur
+mothur
+
+	#7	use fastq.info to parse the fastq file into a fasta file and a qual file
+		#a. write your own command specifying the fastq file (if you're having trouble, see the bottom of the file)
+	
+	#8	view the summary statistics for your sequences
+		#you'll notice there are some sequences with n's and long homopolymers
+summary.seqs(fasta=merged.seqs.fasta)
+
+	#9	filter the sequences using screen.seqs
+		#use the following options:
+		#fasta=merged.seqs.fasta
+		#maxambig=0
+		#maxhomop=8
+		#group=mothur.group.txt
+
+	#10 view the summary statistics for your filtered sequences
+summary.seqs(fasta=merged.seqs.good.fasta)
+
+	#11 speed things up by only working with unique sequences
+unique.seqs(fasta=merged.seqs.good.fasta)
+
+	#12 align the sequences using align.seqs
+align.seqs(fasta=merged.seqs.good.unique.fasta,reference=SILVA_128.align.fasta,processors=4)
+#aligning takes a long time!  kill that process
+#instead, fetch the results from http://folk.uio.no/marieda/aligned.tar.gz
+
+	#13 remove gap-only positions from our alignment
+filter.seqs(fasta=merge.seqs.good.unique.good.align, vertical=T, trump=.) \
+
+	#14 do some additional error correction by merging sequences that have only a single bp difference from one another
+pre.cluster(fasta=merge.seqs.good.unique.good.filter.unique.fasta, count=merge.seqs.good.unique.good.filter.count_table, diffs=1)
+
+	#15 check for chimeras using mothur's version of vsearch
+chimera.vsearch(fasta=merged.seqs.good.unique.filter.unique.precluster.fasta,count=merged.seqs.good.unique.good.filter.count_table,template=self,mindiv=1,dereplicate=t)
+
+	#13 remove chimeric sequences using chimera.vsearch
+remove.seqs(fasta=merged.seqs.good.unique.good.filter.unique.precluster.fasta,accnos=merged.seqs.good.unique.denovo.vsearch.accnos)
+
+	#16 view the summary statistics for your chimera free data
+		#here we are using mothur's shorthand 'current' for referring to the most recently generated file of that type
+summary.seqs(fasta=current,count=current)
+	#17 create a distance matrix for clustering
+dist.seqs(fasta=current,cutoff=0.1)
+	#18 use the distance matrix as the input for the single linkage clustering command 'cluster'
+	#19 compare the sequences to the silva database	using the classify.otu command
+
+
+
+fastq.info(fastq=merged.seqs.fastq)
+screen.seqs(fasta=merged.seqs.fasta,maxambig=0,maxhomop=8,group=mothur.group.txt)
