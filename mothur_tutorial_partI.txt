@@ -53,5 +53,5 @@ align.seqs(fasta=merged.seqs.good.unique.fasta,reference=SILVA_128.align.fasta,p
 
 
 
-fastq.info(fastq=merged.seqs.fasta)
+fastq.info(fastq=merged.seqs.fastq)
 screen.seqs(fasta=merged.seqs.fasta,maxambig=0,maxhomop=8,group=mothur.group.txt)
