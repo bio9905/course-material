@@ -12,7 +12,10 @@ module load mothur
 			#it also includes a mothur group file		
 wget http://folk.uio.no/marieda/merged.seqs.fastq.tar.gz
 		#b. write your own command to fetch the database from this location: http://folk.uio.no/marieda/SILVA_128.align.fasta.tar.gz
+		#c. and the group file from this location: http://folk.uio.no/marieda/mothur.group.txt		
+	
 	#5	expand the files and remove the original files
+
 tar -xzvf merged.seqs.fastq.tar.gz
 tar -xzvf SILVA_128.align.fasta.tar.gz
 rm merged.seqs.fastq.tar.gz
