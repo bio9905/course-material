@@ -16,7 +16,7 @@ wget http://folk.uio.no/marieda/merged.seqs.fastq.tar.gz
 tar -xzvf merged.seqs.fastq.tar.gz
 tar -xzvf SILVA_128.align.fasta.tar.gz
 rm merged.seqs.fastq.tar.gz
-rm mothurSILVA_128.align.fasta.tar.gz
+rm SILVA_128.align.fasta.tar.gz
 
 	#6	open an interactive session with mothur
 mothur
