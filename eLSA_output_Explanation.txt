@@ -1,0 +1,46 @@
+								
+X	The name of the first OTU in the pairwise comparison. (OTU=operational taxonomic unit and is a proxy for the species in the samples)										
+Y	The name of the  second OTU in the dataset from this pairwise comparison. eLSA  compares X to Y										
+LS	Local similarity score. It is defined as "For two normal transformed sequences of the same length, the local similarity score is defined as the maximal sum of the product of the corresponding entries of all their subsequences within some predefined time delay D." The mathematical definition is in Ruan et al 2006. If someone can help me translating this into a slighlty different formulation I would greatly appreaciate it										
+
+lowCI, upCI	lower and upper cofidence interval for bootstrapped Local Similarity score. Requires replicates for the samples (we do not have replicates from Blanes Bay at the moment). BTW this is the 'e' in eLSA.... 										
+											
+Xs	start of the alignment of the time series for X (see Len)										
+
+Ys	start of the alignment of the time series for Y (see Len)										
+
+Len	This is called the alignment lenght. Denotes the lenght of the comparison of the to time series. For instance: For two years monthly sampling there are 24 timepoints, the maximum lenght of alignment between the time series for X and Y is 24, which means that the to time series correlates fot the entire time series of 24 months. A shorter score means then a shorter time period of correaltion. The start and point for the correlations are in the previous two columns called Xs and Ys.										
+
+Delay	calculated delay for align,ment of time series  Xs-Ys. If the delay is 0 the there is no direction between X and Y, if positive X point to Y, if negative Y point to X. That is the Y  is "lagged" in a negative delay and "leads" in a positive delay. For example if the delay OTU_A and OTU_B is 1 it means that the one of the time series has been shifted one month relative to the other (things that happen in February for A happened in January for B).									
+
+P	The p-value for the LS. Can be calculated with a theoretical aproximation (see Xia 2013), or with a permutation test (the original Ruan 2006 version) or a mixture. The permutation test takes a lot more time than the theroteical approxiamtion. I have done tests where the theoretical calculation takes a couple of hours, while the permutation test takes several days for the same dataset. 										
+
+PCC	Pearson's Correlation Coefficient (https://en.wikipedia.org/wiki/Pearson_product-moment_correlation_coefficient)										
+
+Ppcc	p value for Pearson's Correlation Coefficient										
+
+SPCC	delay-Shifted Pearson's Correlation Coefficien										
+
+Pspcc	p value for Pearson's delay-Shifted Correlation Coefficient										
+
+Dspcc 	The Delay for SPCC										
+
+SCC	Spearman's Correlation Coefficient (https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient)										
+
+Pscc	p-value for Spearman's Correlation Coefficient										
+
+SSCC	delay-Shifted Spearman's Correlation Coefficient										
+
+Psscc	p-value for delay-Shifted Spearman's Correlation Coefficient										
+
+Dsscc	The Delay used in the delay-Shifted Spearman's Correlation Coefficient										
+
+Q	q-value a.k.a. False discovery rate (fdr). A correction of the p-values when doing multiple testing. They were not calculated in the exmample I foun										
+
+Qpcc	q-value for Pearson's Correlation Coefficient										
+
+Qspcc	q-value for delay-Shifted Pearson's Correlation Coefficien										
+
+Qscc	q-value for Spearman's Correlation Coefficient										
+
+Qsscc	q-value for delay-Shifted Spearman's Correlation Coefficient										
